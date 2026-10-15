@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>五年级 RBT - 植物大战僵尸策略复习版</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #1a252f;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+            background: #2c3e50;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 10px 20px;
+            background: #16a085;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .card-bar {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            padding: 8px 15px;
+            background: #34495e;
+            align-items: center;
+            overflow-x: auto;
+        }
+        .plant-card {
+            background: #27ae60;
+            border: 2px solid #2ecc71;
+            border-radius: 8px;
+            padding: 5px 10px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 13px;
+            min-width: 90px;
+        }
+        .plant-card.active { border-color: #f1c40f; background: #1e8449; box-shadow: 0 0 8px #f1c40f; }
+        .plant-card.disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        canvas {
+            background-color: #2e7d32;
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
+
+        .btn-quiz {
+            background: #f39c12;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 3px #d35400;
+        }
+        .btn-quiz:active { transform: translateY(2px); box-shadow: 0 1px #d35400; }
+
+        /* 答题弹窗 */
+        .modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.92);
+            padding: 20px;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal h3 { color: #f1c40f; margin-bottom: 15px; font-size: 18px; text-align: center; line-height: 1.4; }
+        .options-grid { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+        .option-btn {
+            background: #3498db; color: white; border: none; padding: 10px 15px;
+            border-radius: 6px; font-size: 14px; text-align: left; cursor: pointer;
+        }
+        .option-btn:hover { background: #2980b9; }
+        .feedback { margin-top: 10px; font-size: 16px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="header">
+        <div>☀️ 阳光: <span id="sunCount">100</span></div>
+        <div>🏆 进度: <span id="levelText">1</span>/30 题</div>
+        <button class="btn-quiz" onclick="triggerQuiz()">📝 答题赚阳光</button>
+    </div>
+
+    <!-- 植物选择卡牌 -->
+    <div class="card-bar">
+        <div style="font-size:12px; color:#f1c40f;">选择植物种植：</div>
+        <div class="plant-card active" id="card-peashooter" onclick="selectPlant('peashooter')">
+            🌱 豌豆<br><small>100阳光</small>
+        </div>
+        <div class="plant-card" id="card-icepea" onclick="selectPlant('icepea')">
+            ❄️ 寒冰<br><small>150阳光</small>
+        </div>
+        <div class="plant-card" id="card-repeater" onclick="selectPlant('repeater')">
+            🌿 双发<br><small>200阳光</small>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+    <!-- 答题弹窗 -->
+    <div id="quizModal" class="modal">
+        <h3 id="questionText">题目加载中...</h3>
+        <div id="optionsContainer" class="options-grid"></div>
+        <div id="feedbackText" class="feedback"></div>
+    </div>
+</div>
+
+<script>
+// ===== 30道完全匹配五大主题的题目（由易到难） =====
+const questions = [
+    // --- 1. 手缝工具与基本针法 (1-6) ---
+    { q: "1. 拆线器（Ripper）在手缝工艺中的主要用途是什么？", options: ["A. 剪切大块布料", "B. 拆除缝错的线迹与剪开扣眼", "C. 测量布料尺寸", "D. 穿线入针"], a: 1 },
+    { q: "2. 缝制衣服边缘防止布料脱线（Fraying）的最常用针法是？", options: ["A. 疏缝（Jahitan Jelujur Kasar）", "B. 锁边缝（Jahitan Insang Pari）", "C. 回针缝（Jahitan Jelujur Halus）", "D. 暗针缝"], a: 1 },
+    { q: "3. 哪种手缝针法的线迹最紧密牢固，常用来代替缝纫机？", options: ["A. 疏缝", "B. 回针缝（Jahitan Kelem/Backstitch）", "C. 交叉缝", "D. 锁边缝"], a: 1 },
+    { q: "4. “疏缝”的主要作用是什么？", options: ["A. 永久固定布料", "B. 暂时固定两块布料以便缝合", "C. 绣花装饰", "D. 缝合纽扣"], a: 1 },
+    { q: "5. 顶针（Thimble）佩戴在手指上是为了？", options: ["A. 增加手指力量", "B. 保护手指防止被针尾扎伤", "C. 方便拿剪刀", "D. 保持布料干净"], a: 1 },
+    { q: "6. 穿线针（Needle Threader）的作用是？", options: ["A. 将线快速穿过细小的针眼", "B. 测量线的长度", "C. 替代手缝针", "D. 剪断缝线"], a: 0 },
+
+    // --- 2. 可更新能源种类与重要性 (7-12) ---
+    { q: "7. 什么是“可更新能源（Tenaga Boleh Baharu）”？", options: ["A. 用完后无法再补充的能源", "B. 来自自然界且永不枯竭、可不断补充的能源", "C. 会产生剧毒废料的能源", "D. 只能使用一次的能源"], a: 1 },
+    { q: "8. 以下哪一组全部属于可更新能源？", options: ["A. 石油、煤炭", "B. 太阳能、水力、风能、生物质能", "C. 天然气、核能", "D. 柴油、汽油"], a: 1 },
+    { q: "9. 水力发电（Tenaga Hidro）主要依靠什么来产生电能？", options: ["A. 雨水的水温", "B. 强劲的水流位能与动能驱动水轮机", "C. 水中的盐分", "D. 水蒸气上升"], a: 1 },
+    { q: "10. 利用农作物废料、动物粪便等有机物产生的能源称作？", options: ["A. 地热能", "B. 生物质能（Biomas）", "C. 海浪能", "D. 太阳能"], a: 1 },
+    { q: "11. 相比化石燃料，大力发展可更新能源的最大好处是？", options: ["A. 增加温室气体排放", "B. 减少环境污染，减缓全球变暖", "C. 消耗更多的陆地资源", "D. 提高石油价格"], a: 1 },
+    { q: "12. 太阳能电池板（Solar Panel）的能量转换过程是？", options: ["A. 光能转换为电能", "B. 风能转换为电能", "C. 化学能转换为声能", "D. 热能转换为机械能"], a: 0 },
+
+    // --- 3. 基本控制结构与算法 (13-18) ---
+    { q: "13. 程序按步骤从头到尾“一步接一步”顺序执行的结构是？", options: ["A. 顺序结构（Sekunsial）", "B. 选择结构（Pilihan）", "C. 循环结构（Ulangan）", "D. 随机结构"], a: 0 },
+    { q: "14. 什么是“选择结构（Struktur Kawalan Pilihan）”？", options: ["A. 不管条件如何只运行一次", "B. 根据条件判断（是/否）决定走哪条分支路径", "C. 不断重复执行某段代码", "D. 倒序执行程序"], a: 1 },
+    { q: "15. 什么是“循环结构（Struktur Kawalan Ulangan）”？", options: ["A. 程序遇到错误自动停止", "B. 在条件满足时重复执行特定的程序段", "C. 忽略所有条件语句", "D. 只执行第一行代码"], a: 1 },
+    { q: "16. “如果分数≥60则及格，否则不及格”，这属于哪种结构？", options: ["A. 顺序结构", "B. 选择结构", "C. 循环结构", "D. 重复结构"], a: 1 },
+    { q: "17. “走廊感应灯会在无人时一直保持熄灭，直到有人经过”，重复检测的过程属于？", options: ["A. 顺序结构", "B. 循环结构", "C. 终止结构", "D. 单向结构"], a: 1 },
+    { q: "18. 在流程图中，表示“条件判断/决策（Decision）”的标准符号是？", options: ["A. 椭圆形", "B. 平行四边形", "C. 菱形（Diamond）", "D. 矩形"], a: 2 },
+
+    // --- 4. 控制器板与电子元件 (19-24) ---
+    { q: "19. 在智能电子项目中，微控制器板（如Micro:bit/Arduino）扮演什么角色？", options: ["A. 只是普通的电池盒", "B. 控制系统的“大脑”，接收输入并执行程序控制输出", "C. 连接螺丝的工具", "D. 发声扬声器"], a: 1 },
+    { q: "20. 发光二极管（LED）在电路中属于什么元件？", options: ["A. 输入元件（Input）", "B. 输出元件（Output）", "C. 处理器", "D. 电源线"], a: 1 },
+    { q: "21. 蜂鸣器（Buzzer）的主要用途是？", options: ["A. 检测温度", "B. 发出声音信号或警报", "C. 显示文字图像", "D. 旋转机械臂"], a: 1 },
+    { q: "22. 想让电子设备检测环境是黑夜还是白天，应该使用什么传感器？", options: ["A. 声音传感器", "B. 光敏传感器（LDR）", "C. 超声波传感器", "D. 按键开关"], a: 1 },
